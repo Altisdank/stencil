@@ -1,0 +1,17 @@
+{
+  "id": "./",
+  "name": "Stencil",
+  "short_name": "Stencil",
+  "description": "Typsnitt, bokstavsverkstad och A4-stenciler med exakta mått.",
+  "lang": "sv",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "theme_color": "#171916",
+  "background_color": "#171916",
+  "icons": [
+    { "src": "assets/stencil-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "assets/stencil-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "assets/stencil-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
