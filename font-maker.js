@@ -144,7 +144,7 @@
   $('#export-font').addEventListener('click',()=>{try{clearError();download(getBuffer(),'font/otf',`${filename()}.otf`);$('#preview-ready').textContent='OTF-filen är skapad. Du kan importera den i Stencil eller installera den på en dator.';}catch(problem){showError(problem.message||'Typsnittet kunde inte exporteras.');}});
   $('#use-in-stencil').addEventListener('click',()=>{
     if(missingCharacters().length||!$('#test-text').value.trim())return;
-    try{core.sanitizeProject(project);sessionStorage.setItem(HANDOFF,JSON.stringify({project,sample:$('#test-text').value.normalize('NFC')}));save();window.location.href='./#verkstad';}
+    try{core.sanitizeProject(project);sessionStorage.setItem(HANDOFF,JSON.stringify({project,sample:$('#test-text').value.normalize('NFC')}));save();window.location.href='app.html#verkstad';}
     catch{showError('Webbläsaren kunde inte överföra typsnittet. Hämta OTF-filen och importera den i A4-verkstaden i stället.');}
   });
   function confirmReplace(message){

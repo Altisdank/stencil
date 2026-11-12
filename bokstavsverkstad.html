@@ -13,15 +13,15 @@
   <meta name="apple-mobile-web-app-title" content="Stencil">
   <script src="install.js" defer></script>
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="font-maker.css?v=3">
+  <link rel="stylesheet" href="font-maker.css?v=4">
   <script src="vendor/opentype.min.js" defer></script>
   <script src="vendor/perfect-freehand.js?v=3" defer></script>
   <script src="font-maker-core.js?v=3" defer></script>
-  <script src="font-maker.js?v=4" defer></script>
+  <script src="font-maker.js?v=landing-route-1" defer></script>
 </head>
 <body>
   <a class="skip" href="#drawing">Hoppa till ritytan</a>
-  <header class="maker-header"><a class="brand" href="./" aria-label="Stencil – startsida">Stencil<span>*</span></a><span class="header-label">BOKSTAVSVERKSTADEN</span><a class="back-link" href="./#verkstad">Till A4-verkstaden <span aria-hidden="true">↗</span></a></header>
+  <header class="maker-header"><a class="brand" href="index.html" aria-label="Stencil – startsida">Stencil<span>*</span></a><span class="header-label">BOKSTAVSVERKSTADEN</span><a class="back-link" href="app.html#verkstad">Till A4-verkstaden <span aria-hidden="true">↗</span></a></header>
   <main>
     <div class="maker-intro"><div><span class="beta"><i></i> UNDER UTVECKLING · BETA</span><h1>Din hand.<br class="mobile-break"> Ditt <em>alfabet.</em></h1></div><p>Rita ett tecken i taget. Se orden ta form.<br>Gör din handstil till ett riktigt typsnitt.</p></div>
     <section class="project-bar" aria-label="Ditt typsnittsprojekt"><div class="project-name"><label for="font-name">DITT TYPSNITTS NAMN</label><input id="font-name" maxlength="60" value="Min handstil" autocomplete="off"></div><p id="save-status" role="status" aria-live="polite">Ditt utkast sparas lokalt här.</p><button id="backup" class="text-button">Spara projektfil <span aria-hidden="true">↓</span></button><button id="open-project" class="text-button">Öppna projekt</button><input type="file" accept=".json,application/json" id="project-file" hidden></section>
@@ -37,8 +37,8 @@
       </div>
     </section>
     <section class="preview-section" aria-labelledby="preview-title"><div class="preview-heading"><div><span class="eyebrow">03 — PROVA DITT UTTRYCK</span><h2 id="preview-title">Från tecken <em>till ord.</em></h2></div><span id="preview-ready" class="ready-note">Rita ditt första tecken för att börja.</span></div><div class="preview-controls"><label for="test-text">SKRIV MED DITT TYPSNITT<input id="test-text" maxlength="100" value="A" placeholder="Skriv något med dina bokstäver…" autocomplete="off"></label><label class="spacing-label" for="letter-spacing">AVSTÅND MELLAN TECKEN <output id="spacing-value">0</output><input id="letter-spacing" type="range" min="-40" max="200" value="0"></label></div><div id="font-preview" class="font-preview" aria-label="Förhandsvisning med ditt eget typsnitt"><span class="preview-placeholder">Här tar din handstil form.</span></div><p id="missing-characters" class="missing-note" role="status" aria-live="polite"></p><div class="export-row"><p>Du kan exportera redan efter ett tecken.<br><span>Bara det du har ritat ingår. Mellanslag läggs till automatiskt.</span></p><div><button id="use-in-stencil" class="secondary-button" disabled>Använd i A4-verkstaden ↗</button><button id="export-font" class="primary-button" disabled>Hämta typsnitt .OTF <span aria-hidden="true">↓</span></button></div></div></section>
-    <details class="beta-info"><summary>Vad ingår i betaversionen? <span aria-hidden="true">+</span></summary><div><p>Du kan rita stora och små bokstäver, Å Ä Ö, siffror och vanliga skiljetecken. Varje tecken får samma baslinje och automatisk sidmarginal. Ditt typsnitt kan hämtas som en OpenType-fil (.otf) eller användas direkt till en stencil.</p><p>Utkastet sparas lokalt. På iPad har <a href="./#hemskarm">hemskärmsappen</a> egen lagring. Välj <strong>Spara projektfil</strong> för att flytta ditt utkast och läs in filen med <strong>Öppna projekt</strong>. Rensad webbplatsdata kan ta bort utkastet.</p><p>Det här är en första ritverkstad. Avancerad kurvredigering, individuell teckenmellanrumning och ligaturer ingår ännu inte. Vi har testat webbflödet, men pennkänsla och tryck behöver provas på riktiga iPad- och Samsung-plattor.</p></div></details>
-    <div class="project-bottom"><span>Stencil · Skapad av AltisDank</span><button id="new-project" class="text-button">Börja på ett nytt typsnitt</button></div>
+    <details class="beta-info"><summary>Vad ingår i betaversionen? <span aria-hidden="true">+</span></summary><div><p>Du kan rita stora och små bokstäver, Å Ä Ö, siffror och vanliga skiljetecken. Varje tecken får samma baslinje och automatisk sidmarginal. Ditt typsnitt kan hämtas som en OpenType-fil (.otf) eller användas direkt till en stencil.</p><p>Utkastet sparas lokalt. På iPad har <a href="app.html#hemskarm">hemskärmsappen</a> egen lagring. Välj <strong>Spara projektfil</strong> för att flytta ditt utkast och läs in filen med <strong>Öppna projekt</strong>. Rensad webbplatsdata kan ta bort utkastet.</p><p>Det här är en första ritverkstad. Avancerad kurvredigering, individuell teckenmellanrumning och ligaturer ingår ännu inte. Vi har testat webbflödet, men pennkänsla och tryck behöver provas på riktiga iPad- och Samsung-plattor.</p></div></details>
+    <div class="project-bottom"><span class="site-credit">Stencil · Skapad av AltisDank</span><button id="new-project" class="text-button">Börja på ett nytt typsnitt</button></div>
   </main>
   <dialog id="confirm-dialog" aria-labelledby="confirm-title"><h2 id="confirm-title">Byta projekt?</h2><p id="confirm-copy"></p><div><button id="confirm-cancel" class="secondary-button">Avbryt</button><button id="confirm-accept" class="primary-button">Fortsätt</button></div></dialog>
   <noscript><p class="error">Bokstavsverkstaden behöver JavaScript för att rita och skapa typsnitt.</p></noscript>
