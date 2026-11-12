@@ -38,7 +38,8 @@
   function createPDF(design) {
     let content = `q\n${f(PT)} 0 0 ${f(-PT)} 0 ${f(PAGE.height*PT)} cm\n0 g\n0 G\n1 J\n1 j\n`;
     if (design.mirror) content += '-1 0 0 1 210 0 cm\n';
-    if (design.commands.length) content += `${pdfPath(design.commands)}\nf\n`;
+    const gray=1-clamp(design.darkness??1,0,1);content+=`${f(gray)} g\n${f(gray)} G\n`;
+    for(const layer of design.layers||[{commands:design.commands}])if(layer.commands.length)content+=`${pdfPath(layer.commands)}\nf\n`;
     for (const stroke of design.strokes) {
       if (stroke.points.length < 2) continue;
       content += `${f(stroke.width)} w\n${f(stroke.points[0].x)} ${f(stroke.points[0].y)} m\n`;
@@ -64,9 +65,10 @@
   }
   function createSVG(design) {
     const mirror = design.mirror ? ' transform="translate(210 0) scale(-1 1)"' : '';
-    let markup = `<svg xmlns="http://www.w3.org/2000/svg" width="210mm" height="297mm" viewBox="0 0 210 297"><g${mirror} fill="#000">`;
-    if (design.commands.length) markup += `<path d="${pathData(design.commands)}"/>`;
-    markup += design.strokes.map(stroke => `<polyline points="${stroke.points.map(p => `${f(p.x)},${f(p.y)}`).join(' ')}" fill="none" stroke="#000" stroke-width="${f(stroke.width)}" stroke-linecap="round" stroke-linejoin="round"/>`).join('');
+    const gray=Math.round((1-clamp(design.darkness??1,0,1))*255),ink=`rgb(${gray},${gray},${gray})`;
+    let markup = `<svg xmlns="http://www.w3.org/2000/svg" width="210mm" height="297mm" viewBox="0 0 210 297"><g${mirror} fill="${ink}">`;
+    for(const layer of design.layers||[{commands:design.commands}])if(layer.commands.length)markup+=`<path d="${pathData(layer.commands)}"/>`;
+    markup += design.strokes.map(stroke => `<polyline points="${stroke.points.map(p => `${f(p.x)},${f(p.y)}`).join(' ')}" fill="none" stroke="${ink}" stroke-width="${f(stroke.width)}" stroke-linecap="round" stroke-linejoin="round"/>`).join('');
     markup += '</g>';
     if (design.calibration) markup += '<rect x="150.1" y="237.1" width="49.8" height="49.8" fill="none" stroke="#000" stroke-width="0.2"/>';
     return markup+'</svg>';
@@ -118,9 +120,10 @@
     if(entries.some(entry=>entry.bytes.byteLength>IMPORT_LIMIT)||entries.reduce((sum,entry)=>sum+entry.bytes.byteLength,0)>32*1024*1024)throw Error('Typsnitten i ZIP-filen är för stora.');
     return entries;
   }
-  const core={PAGE,PT,normalizePath,pathBounds,transformPath,mirroredPosition,fontEntries,pathData,pdfPath,createPDF,createSVG};
+  const core={PAGE,PT,normalizePath,pathBounds,mapPath,transformPath,mirroredPosition,fontEntries,pathData,pdfPath,createPDF,createSVG};
   if(typeof module!=='undefined'&&module.exports)module.exports=core;
   if(typeof document==='undefined')return;
+  window.StencilWorkshopCore=core;
   const root=document.getElementById('verkstad');if(!root)return;
   const catalog=window.StencilFonts||[];
   const initialFont=catalog.find(font=>font.id==='cormorant-garamond')||catalog[0];
@@ -143,6 +146,62 @@
   const importedGroup=document.createElement('optgroup');importedGroup.label='Dina egna och importerade typsnitt';
   function optionFor(font,group){const option=document.createElement('option');option.value=font.id;option.textContent=font.name;group.append(option);}
   catalog.forEach(font=>optionFor(font,builtInGroup));if(initialFont)q('#ws-font').value=initialFont.id;
+  // Keep the select as the shared value for catalogue links and font imports.
+  // A custom list is needed because native select menus ignore font styling on many devices.
+  const nativeFont=q('#ws-font');nativeFont.hidden=true;
+  nativeFont.insertAdjacentHTML('afterend',`<div class="ws-font-picker"><button type="button" id="ws-font-toggle" aria-haspopup="listbox" aria-expanded="false" aria-controls="ws-font-list" aria-labelledby="ws-font-label ws-font-current"><span id="ws-font-current"></span><span aria-hidden="true">⌄</span></button><div class="ws-font-popup" hidden><label for="ws-font-search">Sök typsnitt</label><input id="ws-font-search" type="search" placeholder="Sök på namn…" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="ws-font-list"><div id="ws-font-list" role="listbox" aria-label="Typsnitt"></div><p id="ws-font-empty" role="status" hidden>Inga typsnitt matchar sökningen.</p></div></div>`);
+  q('label[for="ws-font"]').id='ws-font-label';q('#ws-font-label').htmlFor='ws-font-toggle';
+  const picker=q('.ws-font-picker'),fontToggle=q('#ws-font-toggle'),fontPopup=q('.ws-font-popup'),fontSearch=q('#ws-font-search'),fontList=q('#ws-font-list');
+  const previewFaces=new Map();let visibleFonts=[],activeFont=-1;
+  function allFonts(){return [...catalog,...imported.values()];}
+  async function previewFont(font,element){
+    const family=`StencilPreview-${font.id}`;
+    element.style.fontFamily=`"${family}", serif`;
+    if(!previewFaces.has(font.id)){
+      const source=font.previewBytes||`url("assets/fonts/${encodeURIComponent(font.id)}.ttf")`;
+      const face=new FontFace(family,source);
+      previewFaces.set(font.id,face.load().then(loaded=>{document.fonts.add(loaded);return true;}).catch(()=>false));
+    }
+    if(!await previewFaces.get(font.id)){element.style.fontFamily='';element.title='Typsnittets förhandsvisning kunde inte laddas.';}
+  }
+  const fontObserver=window.IntersectionObserver?new IntersectionObserver(entries=>{for(const entry of entries)if(entry.isIntersecting){const font=allFonts().find(item=>item.id===entry.target.dataset.fontId);if(font)previewFont(font,entry.target);fontObserver.unobserve(entry.target);}},{root:fontList,rootMargin:'100px'}):null;
+  function activateFont(index,scroll=true){
+    activeFont=index;
+    [...fontList.children].forEach((row,i)=>row.classList.toggle('is-active',i===index));
+    const row=fontList.children[index];
+    if(row){fontSearch.setAttribute('aria-activedescendant',row.id);if(scroll)row.scrollIntoView({block:'nearest'});}else fontSearch.removeAttribute('aria-activedescendant');
+  }
+  function renderFontList(){
+    fontObserver?.disconnect();fontList.replaceChildren();
+    const query=fontSearch.value.trim().toLocaleLowerCase('sv');
+    visibleFonts=allFonts().filter(font=>font.name.toLocaleLowerCase('sv').includes(query));
+    visibleFonts.forEach((font,index)=>{
+      const row=document.createElement('div');row.id=`ws-font-option-${index}`;row.dataset.fontId=font.id;row.setAttribute('role','option');row.setAttribute('aria-selected',String(font.id===nativeFont.value));
+      const name=document.createElement('span');name.className='ws-font-name';name.textContent=font.name;name.dataset.fontId=font.id;
+      const check=document.createElement('span');check.className='ws-font-check';check.setAttribute('aria-hidden','true');check.textContent=font.id===nativeFont.value?'✓':'';
+      row.append(name,check);row.addEventListener('click',()=>chooseFont(font.id));fontList.append(row);
+      if(fontObserver)fontObserver.observe(name);else previewFont(font,name);
+    });
+    q('#ws-font-empty').hidden=visibleFonts.length>0;
+    activateFont(Math.max(0,visibleFonts.findIndex(font=>font.id===nativeFont.value)),false);
+  }
+  function syncFontPicker(){const font=allFonts().find(item=>item.id===nativeFont.value);if(font){q('#ws-font-current').textContent=font.name;previewFont(font,q('#ws-font-current'));}}
+  function closeFontPicker(focus=false){fontPopup.hidden=true;fontToggle.setAttribute('aria-expanded','false');fontSearch.setAttribute('aria-expanded','false');if(focus)fontToggle.focus();}
+  function openFontPicker(){fontPopup.hidden=false;fontToggle.setAttribute('aria-expanded','true');fontSearch.setAttribute('aria-expanded','true');fontSearch.value='';renderFontList();fontSearch.focus();activateFont(activeFont);}
+  function chooseFont(id){nativeFont.value=id;closeFontPicker(true);nativeFont.dispatchEvent(new Event('change',{bubbles:true}));}
+  fontToggle.addEventListener('click',()=>fontPopup.hidden?openFontPicker():closeFontPicker());
+  fontToggle.addEventListener('keydown',event=>{if(event.key==='ArrowDown'||event.key==='ArrowUp'){event.preventDefault();openFontPicker();}});
+  fontSearch.addEventListener('input',renderFontList);
+  fontSearch.addEventListener('keydown',event=>{
+    if(event.key==='ArrowDown'||event.key==='ArrowUp'){event.preventDefault();activateFont(clamp(activeFont+(event.key==='ArrowDown'?1:-1),0,visibleFonts.length-1));}
+    if(event.key==='Enter'){event.preventDefault();if(visibleFonts[activeFont])chooseFont(visibleFonts[activeFont].id);}
+  });
+  picker.addEventListener('keydown',event=>{if(event.key==='Escape'&&!fontPopup.hidden){event.preventDefault();event.stopPropagation();closeFontPicker(true);}});
+  picker.addEventListener('focusout',event=>{if(!picker.contains(event.relatedTarget))closeFontPicker();});
+  // Keep focus on the search field while selecting an option with mouse or touch.
+  fontList.addEventListener('pointerdown',event=>event.preventDefault());
+  document.addEventListener('pointerdown',event=>{if(!picker.contains(event.target))closeFontPicker();});
+  syncFontPicker();
   const svg=q('#ws-sheet');
   function resizePreview(){const viewport=q('.ws-paper-viewport'),frame=q('.ws-paper-frame'),availableHeight=matchMedia('(max-width:760px)').matches?Math.min(320,Math.max(260,window.innerHeight-245)):Math.max(260,window.innerHeight-245),fitWidth=Math.min(viewport.clientWidth,availableHeight*210/297),zoom=q('#ws-zoom').value;frame.style.width=`${zoom==='fit'?fitWidth:(210*96/25.4)*Number(zoom)}px`;viewport.style.height=`${fitWidth*297/210}px`;}
   q('#ws-zoom').addEventListener('change',resizePreview);if(window.ResizeObserver)new ResizeObserver(resizePreview).observe(q('.ws-paper-viewport'));window.addEventListener('resize',resizePreview);requestAnimationFrame(resizePreview);
@@ -151,12 +210,13 @@
   const automaticValues=new Map();
   function fieldValue(id){const input=q(id),saved=automaticValues.get(id);return saved&&saved.text===input.value?saved.value:mm(input.value);}
   function setField(id,value){const text=show(value);q(id).value=text;automaticValues.set(id,{text,value});}
-  function error(message){state.valid=false;q('#ws-message').textContent=message;q('#ws-message').classList.add('is-error');q('#ws-selection').setAttribute('hidden','');updateActions();}
+  function error(message){state.valid=false;q('#ws-message').textContent=message;q('#ws-message').classList.add('is-error');q('#ws-selection').setAttribute('hidden','');q('#ws-letter-handles')?.replaceChildren();updateActions();}
   function updateActions(){const any=state.commands.length||state.strokes.length||state.calibration;['#ws-pdf','#ws-svg','#ws-print'].forEach(id=>q(id).disabled=state.loading||!state.valid||!any);q('#ws-undo').disabled=q('#ws-clear').disabled=state.strokes.length===0;}
-  function geometry(commitPosition=false){
+  function geometry(commitPosition=false,preserveLetterAnchor=false){
     q('#ws-message').classList.remove('is-error');state.text=q('#ws-text').value;
     let width=fieldValue('#ws-width'),height=fieldValue('#ws-height');
-    const requestedX=fieldValue('#ws-x'),requestedY=fieldValue('#ws-y'),pen=mm(q('#ws-pen-width').value),angle=mm(q('#ws-rotation').value),locked=q('#ws-lock').checked;
+    let requestedX=fieldValue('#ws-x'),requestedY=fieldValue('#ws-y');
+    const pen=mm(q('#ws-pen-width').value),angle=mm(q('#ws-rotation').value),locked=q('#ws-lock').checked;
     if(![height,requestedX,requestedY,pen,angle].every(Number.isFinite)||(!locked&&!Number.isFinite(width))||(locked&&state.sizeAxis==='width'&&!Number.isFinite(width)))return error('Ange giltiga mått, till exempel 2,1.');
     if(height<.1||height>1000||(!locked||state.sizeAxis==='width')&&(width<.1||width>1000))return error('Textens bredd och höjd måste vara mellan 0,1 och 1000 mm.');
     if(pen<.1||pen>10)return error('Pennans linjebredd måste vara mellan 0,1 och 10 mm.');
@@ -164,8 +224,20 @@
     state.penWidth=pen;state.angle=angle;if(state.loading||!state.font)return;
     const missing=[...new Set([...state.text].filter(character=>!/\s/.test(character)&&!state.font.charToGlyphIndex(character)))];if(missing.length)return error(`Typsnittet saknar följande tecken: ${missing.join(' ')}. Välj ett annat typsnitt eller ändra texten.`);
     let raw,model;
-    try{raw=state.font.getPath(state.text,0,0,1000,{kerning:true});const box=pathBounds(raw.commands),ratio=(box.x2-box.x1)/(box.y2-box.y1);if(raw.commands.length&&Number.isFinite(ratio)&&ratio>0){if(locked){if(state.sizeAxis==='width')height=width/ratio;else width=height*ratio;}else if(!Number.isFinite(width))width=height*ratio;}else width=Number.isFinite(width)?width:0;model=transformPath(raw,width,height,angle,0,0);}catch{return error('Texten kunde inte skapas i det här typsnittet. Välj ett annat.');}
+    try{
+      const lettering=window.StencilLettering;
+      raw=lettering?.enabled?window.StencilLetterCore.base(state.font,state.text):state.font.getPath(state.text,0,0,1000,{kerning:true});
+      const box=pathBounds(raw.commands),ratio=(box.x2-box.x1)/(box.y2-box.y1);
+      if(raw.commands.length&&Number.isFinite(ratio)&&ratio>0){if(locked){if(state.sizeAxis==='width')height=width/ratio;else width=height*ratio;}else if(!Number.isFinite(width))width=height*ratio;}else width=Number.isFinite(width)?width:0;
+      model=lettering?.enabled?lettering.layout(raw,width,height,angle):transformPath(raw,width,height,angle,0,0);
+    }catch(problem){return error(problem.message||'Texten kunde inte skapas i det här typsnittet. Välj ett annat.');}
     if(raw.commands.length){if(locked&&state.sizeAxis==='height')setField('#ws-width',width);if(locked&&state.sizeAxis==='width')setField('#ws-height',height);}
+    if(preserveLetterAnchor&&state.letterOrigin&&Number.isFinite(model.originX)){
+      const dx=model.originX-state.letterOrigin.x,dy=model.originY-state.letterOrigin.y;
+      requestedX+=state.mirror?-dx-model.width+state.footprintWidth:dx;requestedY+=dy;
+      setField('#ws-x',requestedX);setField('#ws-y',requestedY);
+    }
+    state.letterOrigin=Number.isFinite(model.originX)?{x:model.originX,y:model.originY}:null;
     state.width=width;state.height=height;state.footprintWidth=model.width;state.footprintHeight=model.height;
     if(model.width>190+1e-8||model.height>277+1e-8){state.commands=[];q('#ws-text-path').removeAttribute('d');q('#ws-measure').textContent=`Efter rotation: ${show(model.width)} × ${show(model.height)} mm`;return error('Texten ryms inte inom utskriftsytan efter rotation. Minska måtten eller ändra vinkeln. Ingen automatisk skalning görs.');}
     const boundedX=clamp(requestedX,10,200-model.width),boundedY=clamp(requestedY,10,287-model.height);
@@ -174,12 +246,16 @@
     if(state.x!==requestedX)setField('#ws-x',state.x);if(state.y!==requestedY)setField('#ws-y',state.y);
     const underlyingX=state.mirror?mirroredPosition(state.x,model.width):state.x;
     state.commands=mapPath(model.commands,(x,y)=>({x:x+underlyingX,y:y+state.y}));
+    state.layers=model.layers?.map(layer=>({...layer,commands:mapPath(layer.commands,(x,y)=>({x:x+underlyingX,y:y+state.y}))}));
     q('#ws-text-path').setAttribute('d',pathData(state.commands));q('#ws-art').setAttribute('transform',state.mirror?'translate(210 0) scale(-1 1)':'');q('#ws-control-square').toggleAttribute('hidden',!state.calibration);
     const selection=q('#ws-selection');selection.setAttribute('x',f(state.x));selection.setAttribute('y',f(state.y));selection.setAttribute('width',f(model.width));selection.setAttribute('height',f(model.height));selection.toggleAttribute('hidden',!state.commands.length||state.mode!=='text');
     q('#ws-measure').textContent=state.commands.length?`Yta efter rotation: ${model.width.toFixed(2).replace('.',',')} × ${model.height.toFixed(2).replace('.',',')} mm`:'Ingen text på arket';
     state.valid=true;q('#ws-message').textContent=moved?'Texten flyttades innanför papprets 10 mm säkerhetsmarginal.':state.commands.length||state.strokes.length||state.calibration?'Redo för A4. Originalets mått ändras inte vid export.':'Skriv en text eller välj Rita och skapa ditt motiv.';updateActions();
+    window.StencilLettering?.render(state,model);
   }
   async function loadFont(id){
+    syncFontPicker();
+    q('#ws-letter-paths')?.replaceChildren();q('#ws-letter-handles')?.replaceChildren();
     const request=++state.fontRequest;state.loading=true;state.valid=false;state.fontId=id;state.commands=[];q('#ws-text-path').removeAttribute('d');q('#ws-selection').setAttribute('hidden','');q('#ws-message').classList.remove('is-error');q('#ws-message').textContent='Laddar typsnittets konturer…';updateActions();
     try{if(!window.opentype)throw Error('Parser unavailable');if(!fontCache.has(id)){const response=await fetch(`assets/fonts/${encodeURIComponent(id)}.ttf`);if(!response.ok)throw Error('Font unavailable');fontCache.set(id,window.opentype.parse(await response.arrayBuffer()));}if(request!==state.fontRequest)return;state.font=fontCache.get(id);state.loading=false;geometry(true);}catch{if(request!==state.fontRequest)return;state.loading=false;state.font=null;error('Typsnittet kunde inte laddas. Välj ett annat typsnitt och försök igen.');}
   }
@@ -191,7 +267,7 @@
       if(!window.opentype)throw Error('Typsnittsläsaren kunde inte laddas. Ladda om sidan och försök igen.');
       let entries;try{entries=fontEntries(new Uint8Array(await file.arrayBuffer()),file.name,window.fflate?.unzipSync);}catch(problem){if(problem instanceof Error&&/[åäö]|ZIP|TTF|OTF/.test(problem.message))throw problem;throw Error('ZIP-filen kunde inte öppnas. Prova att packa upp filen och välj dess TTF- eller OTF-fil.');}
       const added=[],failed=[];
-      for(const entry of entries){try{const data=entry.bytes;const parsed=window.opentype.parse(data.buffer.slice(data.byteOffset,data.byteOffset+data.byteLength));if(!parsed.numGlyphs)throw Error('Empty font');const name=parsed.names.fullName?.en||parsed.names.fontFamily?.en||entry.name.replace(/\.(ttf|otf)$/i,'');const id=`imported-${++state.importCount}`;fontCache.set(id,parsed);const font={id,name:String(name).slice(0,100)};imported.set(id,font);added.push(font);}catch{failed.push(entry.name);}}
+      for(const entry of entries){try{const data=entry.bytes;const parsed=window.opentype.parse(data.buffer.slice(data.byteOffset,data.byteOffset+data.byteLength));if(!parsed.numGlyphs)throw Error('Empty font');const name=parsed.names.fullName?.en||parsed.names.fontFamily?.en||entry.name.replace(/\.(ttf|otf)$/i,'');const id=`imported-${++state.importCount}`;fontCache.set(id,parsed);const font={id,name:String(name).slice(0,100),previewBytes:data.buffer.slice(data.byteOffset,data.byteOffset+data.byteLength)};imported.set(id,font);added.push(font);}catch{failed.push(entry.name);}}
       if(!added.length)throw Error('Inget läsbart typsnitt hittades. Filen kan vara skadad eller använda ett format som inte stöds. Prova en annan TTF- eller OTF-fil.');
       if(!importedGroup.isConnected)q('#ws-font').append(importedGroup);added.forEach(font=>optionFor(font,importedGroup));q('#ws-font').value=added[0].id;await loadFont(added[0].id);
       status.textContent=`${added.length} ${added.length===1?'typsnitt importerat':'typsnitt importerade'} för det här besöket.${failed.length?` ${failed.length} filer kunde inte läsas.`:''}`;
@@ -202,7 +278,7 @@
   q('#ws-lock').addEventListener('change',()=>geometry(true));q('#ws-font').addEventListener('change',event=>loadFont(event.target.value));q('#ws-text-mode').addEventListener('click',()=>setMode('text'));q('#ws-draw-mode').addEventListener('click',()=>setMode('draw'));
   q('#ws-center').addEventListener('click',()=>{if(state.valid){setField('#ws-x',(210-state.footprintWidth)/2);geometry(true);}});
   q('#ws-mirror').addEventListener('change',event=>{if(state.valid&&event.target.checked!==state.mirror)setField('#ws-x',mirroredPosition(state.x,state.footprintWidth));state.mirror=event.target.checked;geometry(true);});q('#ws-calibration').addEventListener('change',event=>{state.calibration=event.target.checked;geometry(true);});
-  function renderStrokes(){const group=q('#ws-strokes');group.replaceChildren();for(const stroke of state.strokes){const line=document.createElementNS(ns,'polyline');line.setAttribute('points',stroke.points.map(point=>`${f(point.x)},${f(point.y)}`).join(' '));line.setAttribute('fill','none');line.setAttribute('stroke','#10120f');line.setAttribute('stroke-width',f(stroke.width));line.setAttribute('stroke-linecap','round');line.setAttribute('stroke-linejoin','round');group.append(line);}updateActions();}
+  function renderStrokes(){const group=q('#ws-strokes');group.replaceChildren();const gray=Math.round((1-(window.StencilLettering?.darkness??1))*255);for(const stroke of state.strokes){const line=document.createElementNS(ns,'polyline');line.setAttribute('points',stroke.points.map(point=>`${f(point.x)},${f(point.y)}`).join(' '));line.setAttribute('fill','none');line.setAttribute('stroke',`rgb(${gray},${gray},${gray})`);line.setAttribute('stroke-width',f(stroke.width));line.setAttribute('stroke-linecap','round');line.setAttribute('stroke-linejoin','round');group.append(line);}updateActions();}
   function paperPoint(event){const matrix=svg.getScreenCTM();if(!matrix)return null;return new DOMPoint(event.clientX,event.clientY).matrixTransform(matrix.inverse());}
   function point(event){const p=paperPoint(event);if(!p)return null;const radius=state.penWidth/2;return {x:clamp(state.mirror?210-p.x:p.x,10+radius,200-radius),y:clamp(p.y,10+radius,287-radius)};}
   svg.addEventListener('pointerdown',event=>{
@@ -221,12 +297,12 @@
   svg.addEventListener('pointerup',endPointer);svg.addEventListener('pointercancel',endPointer);svg.addEventListener('lostpointercapture',endPointer);
   q('#ws-selection').addEventListener('keydown',event=>{const directions={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]},delta=directions[event.key];if(!delta||!state.valid||state.mode!=='text')return;event.preventDefault();const step=event.shiftKey?10:1;setField('#ws-x',state.x+delta[0]*step);setField('#ws-y',state.y+delta[1]*step);geometry(true);});
   q('#ws-undo').addEventListener('click',()=>{state.strokes.pop();renderStrokes();geometry(true);});q('#ws-clear').addEventListener('click',()=>{state.strokes=[];renderStrokes();geometry(true);});
-  function design(){return {commands:state.commands,strokes:state.strokes,mirror:state.mirror,calibration:state.calibration};}
+  function design(){return {commands:state.commands,layers:state.layers,strokes:state.strokes,mirror:state.mirror,calibration:state.calibration,darkness:window.StencilLettering?.darkness??1};}
   function download(bytes,type,filename){const url=URL.createObjectURL(new Blob([bytes],{type})),link=document.createElement('a');link.href=url;link.download=filename;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);}
   q('#ws-pdf').addEventListener('click',()=>{if(!state.valid||state.loading)return;download(createPDF(design()),'application/pdf','stencil-a4-100-procent.pdf');q('#ws-message').textContent='A4-PDF skapad. Välj faktisk storlek / 100 % när du skriver ut.';});q('#ws-svg').addEventListener('click',()=>{if(state.valid&&!state.loading)download(createSVG(design()),'image/svg+xml','stencil-a4.svg');});
   let printSheet;function removePrintSheet(){printSheet?.remove();printSheet=null;document.body.classList.remove('stencil-printing');}
   q('#ws-print').addEventListener('click',()=>{if(!state.valid||state.loading)return;removePrintSheet();printSheet=document.createElement('div');printSheet.id='stencil-print-sheet';printSheet.innerHTML=createSVG(design());document.body.append(printSheet);document.body.classList.add('stencil-printing');window.print();});window.addEventListener('afterprint',removePrintSheet);
-  window.StencilWorkshop={selectFont(id,text){if(!catalog.some(font=>font.id===id)&&!imported.has(id))return;if(typeof text==='string')q('#ws-text').value=text.slice(0,100);q('#ws-font').value=id;loadFont(id);setMode('text');root.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});},getDesign(){return structuredClone(design());}};
+  window.StencilWorkshop={refresh(){geometry(true,true);},selectFont(id,text){if(!catalog.some(font=>font.id===id)&&!imported.has(id))return;if(typeof text==='string')q('#ws-text').value=text.slice(0,100);q('#ws-font').value=id;loadFont(id);setMode('text');root.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});},getDesign(){return structuredClone(design());}};
   async function receiveCreatedFont(){
     const key='stencil-font-handoff-v1';let raw;
     try{raw=sessionStorage.getItem(key);}catch{return false;}
@@ -239,7 +315,7 @@
       const bytes=await maker.fontArrayBuffer(project,window.opentype);
       const parsed=window.opentype.parse(bytes);
       if(!parsed.numGlyphs)throw Error('Typsnittet saknar läsbara tecken.');
-      const id=`created-${++state.importCount}`,font={id,name:`${project.name} · eget typsnitt`};
+      const id=`created-${++state.importCount}`,font={id,name:`${project.name} · eget typsnitt`,previewBytes:bytes};
       fontCache.set(id,parsed);imported.set(id,font);
       if(!importedGroup.isConnected)q('#ws-font').append(importedGroup);
       optionFor(font,importedGroup);q('#ws-font').value=id;
