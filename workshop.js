@@ -149,7 +149,7 @@
   // Keep the select as the shared value for catalogue links and font imports.
   // A custom list is needed because native select menus ignore font styling on many devices.
   const nativeFont=q('#ws-font');nativeFont.hidden=true;
-  nativeFont.insertAdjacentHTML('afterend',`<div class="ws-font-picker"><button type="button" id="ws-font-toggle" aria-haspopup="listbox" aria-expanded="false" aria-controls="ws-font-list" aria-labelledby="ws-font-label ws-font-current"><span id="ws-font-current"></span><span aria-hidden="true">⌄</span></button><div class="ws-font-popup" hidden><label for="ws-font-search">Sök typsnitt</label><input id="ws-font-search" type="search" placeholder="Sök på namn…" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="ws-font-list"><div id="ws-font-list" role="listbox" aria-label="Typsnitt"></div><p id="ws-font-empty" role="status" hidden>Inga typsnitt matchar sökningen.</p></div></div>`);
+  nativeFont.insertAdjacentHTML('afterend',`<div class="ws-font-picker"><button type="button" id="ws-font-toggle" aria-haspopup="dialog" aria-expanded="false" aria-controls="ws-font-dialog" aria-labelledby="ws-font-label ws-font-current"><span id="ws-font-current"></span><span aria-hidden="true">⌄</span></button><dialog class="ws-font-popup" id="ws-font-dialog" aria-labelledby="ws-font-dialog-title" hidden><div class="ws-font-dialog-heading"><h3 id="ws-font-dialog-title">Välj typsnitt</h3><button type="button" id="ws-font-close" aria-label="Stäng typsnittslistan" autofocus>✕</button></div><label for="ws-font-search">Sök typsnitt</label><input id="ws-font-search" type="search" placeholder="Sök på namn…" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="ws-font-list"><div id="ws-font-list" role="listbox" aria-label="Typsnitt" tabindex="0"></div><p id="ws-font-empty" role="status" hidden>Inga typsnitt matchar sökningen.</p></dialog></div>`);
   q('label[for="ws-font"]').id='ws-font-label';q('#ws-font-label').htmlFor='ws-font-toggle';
   const picker=q('.ws-font-picker'),fontToggle=q('#ws-font-toggle'),fontPopup=q('.ws-font-popup'),fontSearch=q('#ws-font-search'),fontList=q('#ws-font-list');
   const previewFaces=new Map();let visibleFonts=[],activeFont=-1;
@@ -186,24 +186,30 @@
     activateFont(Math.max(0,visibleFonts.findIndex(font=>font.id===nativeFont.value)),false);
   }
   function syncFontPicker(){const font=allFonts().find(item=>item.id===nativeFont.value);if(font){q('#ws-font-current').textContent=font.name;previewFont(font,q('#ws-font-current'));}}
-  function closeFontPicker(focus=false){fontPopup.hidden=true;fontToggle.setAttribute('aria-expanded','false');fontSearch.setAttribute('aria-expanded','false');if(focus)fontToggle.focus();}
-  function openFontPicker(){fontPopup.hidden=false;fontToggle.setAttribute('aria-expanded','true');fontSearch.setAttribute('aria-expanded','true');fontSearch.value='';renderFontList();fontSearch.focus();activateFont(activeFont);}
+  let fontReturnFocus=null;
+  function closeFontPicker(focus=false){fontPopup.close();fontPopup.hidden=true;document.body.classList.remove('ws-font-open');fontToggle.setAttribute('aria-expanded','false');fontSearch.setAttribute('aria-expanded','false');if(focus)(fontReturnFocus||fontToggle).focus({preventScroll:true});}
+  function fitFontDialog(){const view=window.visualViewport;fontPopup.style.setProperty('--font-dialog-height',`${view?.height||window.innerHeight}px`);fontPopup.style.setProperty('--font-dialog-top',`${view?.offsetTop||0}px`);}
+  function openFontPicker(){fontReturnFocus=document.activeElement;fontPopup.hidden=false;fitFontDialog();document.body.classList.add('ws-font-open');fontPopup.showModal();fontToggle.setAttribute('aria-expanded','true');fontSearch.setAttribute('aria-expanded','true');fontSearch.value='';renderFontList();if(matchMedia('(max-width:760px), (pointer:coarse)').matches)q('#ws-font-close').focus({preventScroll:true});else fontSearch.focus({preventScroll:true});activateFont(activeFont);}
   function chooseFont(id){nativeFont.value=id;closeFontPicker(true);nativeFont.dispatchEvent(new Event('change',{bubbles:true}));}
   fontToggle.addEventListener('click',()=>fontPopup.hidden?openFontPicker():closeFontPicker());
   fontToggle.addEventListener('keydown',event=>{if(event.key==='ArrowDown'||event.key==='ArrowUp'){event.preventDefault();openFontPicker();}});
   fontSearch.addEventListener('input',renderFontList);
-  fontSearch.addEventListener('keydown',event=>{
+  function fontListKey(event){
     if(event.key==='ArrowDown'||event.key==='ArrowUp'){event.preventDefault();activateFont(clamp(activeFont+(event.key==='ArrowDown'?1:-1),0,visibleFonts.length-1));}
     if(event.key==='Enter'){event.preventDefault();if(visibleFonts[activeFont])chooseFont(visibleFonts[activeFont].id);}
-  });
+  }
+  fontSearch.addEventListener('keydown',fontListKey);fontList.addEventListener('keydown',fontListKey);
   picker.addEventListener('keydown',event=>{if(event.key==='Escape'&&!fontPopup.hidden){event.preventDefault();event.stopPropagation();closeFontPicker(true);}});
-  picker.addEventListener('focusout',event=>{if(!picker.contains(event.relatedTarget))closeFontPicker();});
-  // Keep focus on the search field while selecting an option with mouse or touch.
-  fontList.addEventListener('pointerdown',event=>event.preventDefault());
-  document.addEventListener('pointerdown',event=>{if(!picker.contains(event.target))closeFontPicker();});
+  q('#ws-font-close').addEventListener('click',()=>closeFontPicker(true));
+  fontPopup.addEventListener('cancel',event=>{event.preventDefault();closeFontPicker(true);});
+  fontPopup.addEventListener('click',event=>{if(event.target!==fontPopup)return;const r=fontPopup.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)closeFontPicker(true);});
+  // Preserve mouse keyboard focus; touch scrolling retains its native behavior.
+  fontList.addEventListener('pointerdown',event=>{if(event.pointerType==='mouse')event.preventDefault();});
+  window.visualViewport?.addEventListener('resize',fitFontDialog);window.visualViewport?.addEventListener('scroll',fitFontDialog);
   syncFontPicker();
   const svg=q('#ws-sheet');
-  function resizePreview(){const viewport=q('.ws-paper-viewport'),frame=q('.ws-paper-frame'),availableHeight=matchMedia('(max-width:760px)').matches?Math.min(320,Math.max(260,window.innerHeight-245)):Math.max(260,window.innerHeight-245),fitWidth=Math.min(viewport.clientWidth,availableHeight*210/297),zoom=q('#ws-zoom').value;frame.style.width=`${zoom==='fit'?fitWidth:(210*96/25.4)*Number(zoom)}px`;viewport.style.height=`${fitWidth*297/210}px`;}
+  q('#ws-zoom').insertAdjacentHTML('beforeend','<option value="detail">Närbild av texten</option>');
+  function resizePreview(){const viewport=q('.ws-paper-viewport'),frame=q('.ws-paper-frame'),availableHeight=matchMedia('(max-width:760px)').matches?Math.min(320,Math.max(260,window.innerHeight-245)):Math.max(260,window.innerHeight-245),fitWidth=Math.min(viewport.clientWidth,availableHeight*210/297),zoom=q('#ws-zoom').value;frame.style.width=`${zoom==='fit'?fitWidth:zoom==='detail'?Math.min(1680,210*viewport.clientWidth/Math.max(30,state.footprintWidth+30)):(210*96/25.4)*Number(zoom)}px`;viewport.style.height=`${fitWidth*297/210}px`;}
   q('#ws-zoom').addEventListener('change',resizePreview);if(window.ResizeObserver)new ResizeObserver(resizePreview).observe(q('.ws-paper-viewport'));window.addEventListener('resize',resizePreview);requestAnimationFrame(resizePreview);
   function mm(value){const number=Number(String(value).trim().replace(',','.'));return String(value).trim()&&Number.isFinite(number)?number:NaN;}
   const show=n=>Number(n.toFixed(3)).toString().replace('.',',');

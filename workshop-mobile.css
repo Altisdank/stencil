@@ -1,0 +1,44 @@
+/* Shared picker and touch controls for the landing page and standalone workshop. */
+body.ws-font-open{overflow:hidden}
+#verkstad .ws-font-popup{position:fixed;inset:auto 0;top:calc(var(--font-dialog-top,0px) + 12px);margin:0 auto;width:min(480px,calc(100% - 24px));max-width:none;height:min(660px,calc(var(--font-dialog-height,100dvh) - 24px));max-height:calc(var(--font-dialog-height,100dvh) - 24px);padding:16px;box-sizing:border-box;display:flex;flex-direction:column;gap:8px;color:var(--ink);background:var(--picker-bg);border:1px solid var(--picker-line);border-radius:16px;overflow:hidden;box-shadow:0 20px 80px #0008}
+#verkstad .ws-font-popup::backdrop{background:#0009}
+.ws-font-dialog-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-shrink:0}
+#verkstad .ws-font-dialog-heading h3{font:600 20px 'Space Grotesk',sans-serif;letter-spacing:-.02em;margin:0}
+#ws-font-close{display:grid;place-items:center;min-width:44px;min-height:44px;border:1px solid var(--picker-line);border-radius:8px;font:18px sans-serif;background:transparent;color:inherit;cursor:pointer}
+#verkstad .ws-font-popup #ws-font-search{margin:0 0 4px;flex-shrink:0;min-height:48px;font-size:16px}
+#verkstad .ws-font-popup #ws-font-list{flex:1;min-height:0;max-height:none;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;padding:2px}
+#verkstad #ws-font-list>[role=option]{min-height:60px;padding:10px 12px;touch-action:pan-y;-webkit-tap-highlight-color:transparent}
+#verkstad #ws-font-list .ws-font-name{line-height:1.45;font-size:26px}
+#ws-font-close:focus-visible,#ws-font-list:focus-visible{outline:2px solid var(--picker-accent);outline-offset:-2px}
+.ws-touch-toolbar{margin-bottom:14px}
+.ws-touch-shortcuts{display:flex;gap:8px;margin-bottom:8px}
+#verkstad .ws-touch-shortcuts button{flex:1;min-height:48px;padding:8px 10px;border:1px solid #6e765f;border-radius:8px;font-size:12px;line-height:1.4;color:inherit}
+#verkstad #ws-quick-letters[aria-pressed=true]{background:#d4ff32;color:#111;border-color:#d4ff32}
+#ws-touch-tools[hidden]{display:none}
+.ws-touch-chips{display:flex;gap:6px;overflow-x:auto;overscroll-behavior-x:contain;touch-action:pan-x;scrollbar-width:thin;padding:4px 0 8px}
+#verkstad .ws-touch-chips button{flex:0 0 48px;min-width:48px;min-height:48px;border:1px solid #86917d;border-radius:7px;font-size:27px;line-height:1.2;color:inherit}
+#verkstad .ws-touch-chips button[aria-pressed=true]{background:#d4ff32;color:#111;border-color:#d4ff32}
+.ws-touch-nudge{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin:5px 0}
+.ws-touch-nudge>span{font-size:10px;margin-right:auto}
+#verkstad .ws-touch-nudge button{min-width:44px;min-height:44px;border:1px solid #86917d;border-radius:7px;font:20px sans-serif;color:inherit}
+.ws-touch-toolbar button{touch-action:manipulation;cursor:pointer}
+.ws-touch-toolbar button:disabled{opacity:.4;cursor:not-allowed}
+.ws-touch-toolbar button:focus-visible{outline:2px solid #6b8b19;outline-offset:2px}
+#ws-touch-hint{font-size:11px;line-height:1.5;margin-top:8px;color:var(--muted)}
+#ws-letter-handles rect{pointer-events:all;stroke-width:1;vector-effect:non-scaling-stroke}
+#ws-letter-handles rect.is-selected{fill:#6f9b0b0a;stroke:#477020;stroke-width:1.5;stroke-dasharray:4 3}
+.is-letter-dragging #ws-letter-handles rect{cursor:grabbing}
+#verkstad .ws-check{min-height:44px}
+#verkstad #ws-letter-chips button{min-width:48px;min-height:48px}
+@media(max-width:760px){
+  #verkstad .ws-font-popup{padding:12px 12px max(12px,env(safe-area-inset-bottom));border-radius:14px;top:calc(var(--font-dialog-top,0px) + max(8px,env(safe-area-inset-top)));height:calc(var(--font-dialog-height,100dvh) - 16px - env(safe-area-inset-top));max-height:calc(var(--font-dialog-height,100dvh) - 16px - env(safe-area-inset-top))}
+  #verkstad .workshop-preview{padding:14px 12px 16px;scroll-margin-top:86px}
+  #verkstad .ws-preview-meta{padding-bottom:12px;font-size:8px}
+  #verkstad .ws-zoom-row{gap:8px;margin-bottom:10px}
+  #verkstad .ws-zoom-row select{max-width:190px;font-size:12px}
+  #verkstad .ws-paper-viewport{min-height:230px;overscroll-behavior:auto;touch-action:pan-x pan-y pinch-zoom}
+  #verkstad .ws-paper-caption{font-size:10px;gap:4px;margin-top:10px}
+  #verkstad .ws-preview-note{font-size:10px}
+}
+@media(max-width:600px){#verkstad .workshop-controls{grid-template-columns:minmax(0,1fr)}#verkstad .workshop-controls>*{grid-column:1}#verkstad .ws-dimensions{grid-template-columns:1fr 1fr}#verkstad .ws-position{grid-template-columns:1fr 1fr}}
+@media(max-width:350px){#verkstad .ws-touch-nudge{gap:4px}#verkstad .ws-touch-nudge button{min-width:42px}.ws-touch-nudge>span{width:100%}#verkstad .ws-font-popup #ws-font-list .ws-font-name{font-size:24px}}

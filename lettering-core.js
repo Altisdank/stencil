@@ -67,6 +67,16 @@
     layers=layers.map(layer=>({...layer,commands:map(layer.commands,(x,y)=>({x:x-bounds.x1,y:y-bounds.y1}))}));
     return {layers,commands:layers.flatMap(layer=>layer.commands),width:bounds.x2-bounds.x1,height:bounds.y2-bounds.y1,originX:bounds.x1,originY:bounds.y1,warnings};
   }
-  const api={base,layout,offset,polygons};
+  function screenBox(layer,mirror=false){const b=core.pathBounds(layer.commands);return mirror?{x1:210-b.x2,x2:210-b.x1,y1:b.y1,y2:b.y2}:b;}
+  function touchBox(box,pixelsPerMM=1){const half=24/Math.max(.01,pixelsPerMM),cx=(box.x1+box.x2)/2,cy=(box.y1+box.y2)/2;return {x1:Math.min(box.x1,cx-half),x2:Math.max(box.x2,cx+half),y1:Math.min(box.y1,cy-half),y2:Math.max(box.y2,cy+half)};}
+  function hitLetter(layers,point,mirror,pixelsPerMM){
+    let best=null,score=Infinity;
+    for(const layer of layers||[]){if(!layer.commands.length)continue;const b=screenBox(layer,mirror),hit=touchBox(b,pixelsPerMM);if(point.x<hit.x1||point.x>hit.x2||point.y<hit.y1||point.y>hit.y2)continue;
+      const outside=Math.hypot(Math.max(b.x1-point.x,0,point.x-b.x2),Math.max(b.y1-point.y,0,point.y-b.y2));
+      const rank=outside*1000+Math.hypot(point.x-(b.x1+b.x2)/2,point.y-(b.y1+b.y2)/2);
+      if(rank<score){score=rank;best=layer.index;}
+    }return best;
+  }
+  const api={base,layout,offset,polygons,screenBox,touchBox,hitLetter};
   if(typeof module==='object')module.exports=api;else global.StencilLetterCore=api;
 })(typeof window==='undefined'?globalThis:window);
